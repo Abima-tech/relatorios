@@ -1,13 +1,23 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
-  "display": "standalone",
-  "name": "RelatórioBM",
-  "orientation": "any",
-  "scope": "/",
+  "name": "Relatório de Ocorrências",
   "short_name": "Relatório",
-  "start_url": "/",
-  "theme_color": "#ffffff",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
   "description": "Aplicativo de registro e emissão de relatórios de ocorrências",
-  "lang": "pt"
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1042/1042680.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1042/1042680.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
