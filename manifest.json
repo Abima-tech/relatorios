@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "RelatórioBM",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Relatório",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "description": "Aplicativo de registro e emissão de relatórios de ocorrências",
+  "lang": "pt"
+}
