@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Relatório de Ocorrências - CBM-AP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Plugin de Pesquisa/Busca no Mapa -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <!-- Tesseract.js para OCR (Escanear Documento) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        .btn-option {
+            width: 100%;
+            padding: 1.1rem 1rem;
+            border-radius: 0.75rem;
+            border: 2px solid #e2e8f0;
+            background-color: #ffffff;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #1e293b;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .btn-option:active {
+            transform: scale(0.98);
+            border-color: #b91c1c;
+            background-color: #fef2f2;
+        }
+
+        .chip-checkbox {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            background-color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s;
+        }
+        .chip-checkbox input { display: none; }
+        .chip-checkbox:has(input:checked) {
+            background-color: #fef2f2;
+            border-color: #b91c1c;
+            color: #991b1b;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            background-color: #f1f5f9;
+            color: #475569;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background-color: #991b1b;
+            color: #ffffff;
+            border-color: #991b1b;
+        }
+
+        .page-step { display: none; }
+        .page-step.active { display: block; }
+        #map { height: 260px; width: 100%; border-radius: 0.75rem; z-index: 1; }
+        
+        .leaflet-control-geocoder {
+            border-radius: 8px !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+            border: none !important;
+        }
+    </style>
+</head>
+<body class="pb-12">
+
+    <!-- Cabeçalho -->
+    <header class="bg-red-800 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-base font-bold">Registro de Ocorrência</h1>
+                <p class="text-xs text-red-200" id="stepIndicator">Etapa 1 de 10</p>
+            </div>
+            <span class="bg-red-900 text-red-100 text-xs px-2.5 py-1 rounded-full font-semibold">CBM-AP</span>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-4">
+
+        <!-- PÁGINA 1: TIPO DE OCORRÊNCIA -->
+        <div id="page1" class="page-step active">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-slate-800">1. Tipo de Ocorrência</h2>
+                <p class="text-xs text-slate-500">Selecione a categoria principal da ocorrência:</p>
+            </div>
+
+            <div class="space-y-3" id="tiposContainer">
+                <button onclick="selecionarTipo('Trauma')" class="btn-option">
+                    <span>Trauma</span>
+                    <span class="text-slate-400">➔</span>
+                </button>
+                <button onclick="selecionarTipo('Clínico')" class="btn-option">
+                    <span>Clínico</span>
+                    <span class="text-slate-400">➔</span>
+                </button>
+                <button onclick="selecionarTipo('Proteção Ambiental / Animal')" class="btn-option">
+                    <span>Proteção Ambiental / Animal</span>
+                    <span class="text-slate-400">➔</span>
+                </button>
+                <button onclick="selecionarTipo('Salvamento / Busca')" class="btn-option">
+                    <span>Salvamento / Busca</span>
+                    <span class="text-slate-400">➔</span>
+                </button>
+                <button onclick="selecionarTipo('Incêndio')" class="btn-option">
+                    <span>Incêndio</span>
+                    <span class="text-slate-400">➔</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- PÁGINA 2: SUBTIPO DE OCORRÊNCIA -->
+        <div id="page2" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(1)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">2. Subtipo da Ocorrência</h2>
+                <p class="text-xs text-slate-500">Selecione o detalhamento para: <strong id="tipoSelecionadoLabel" class="text-red-700"></strong></p>
+            </div>
+
+            <div class="space-y-2.5" id="subtiposContainer"></div>
+        </div>
+
+        <!-- PÁGINA 2.1: DETALHAMENTO DO SINISTRO DE TRÂNSITO -->
+        <div id="page2_1" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(2)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">2.1 Tipo de Sinistro de Trânsito</h2>
+                <p class="text-xs text-slate-500">Especifique a modalidade do acidente de trânsito:</p>
+            </div>
+
+            <div class="space-y-2.5" id="sinistrosContainer"></div>
+        </div>
+
+        <!-- PÁGINA 3: DADOS DO SOLICITANTE -->
+        <div id="page3" class="page-step">
+            <div class="mb-4">
+                <button onclick="voltarParaEtapaAnteriorAoSolicitante()" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">3. Dados do Solicitante</h2>
+                <p class="text-xs text-slate-500">Informe quem solicitou o atendimento:</p>
+            </div>
+
+            <!-- OPÇÕES DE ESCANEAR DOCUMENTO -->
+            <div class="bg-red-50 p-3.5 rounded-xl border border-red-200 mb-4 text-center">
+                <p class="text-xs font-bold text-red-800 mb-2">Escanear Documento (RG / CNH)</p>
+                <div class="flex gap-2">
+                    <label class="flex-1 py-2 px-3 bg-red-700 hover:bg-red-800 text-white font-semibold text-xs rounded-lg cursor-pointer transition flex items-center justify-center gap-1">
+                        📷 Câmera
+                        <input type="file" accept="image/*" capture="environment" onchange="processarImagemDocumento(event)" class="hidden">
+                    </label>
+                    <label class="flex-1 py-2 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg cursor-pointer transition flex items-center justify-center gap-1">
+                        🖼️ Galeria
+                        <input type="file" accept="image/*" onchange="processarImagemDocumento(event)" class="hidden">
+                    </label>
+                </div>
+                <div id="ocrStatus" class="text-[11px] font-semibold text-red-700 mt-2 hidden">
+                    ⏳ Lendo documento, aguarde...
+                </div>
+            </div>
+
+            <div class="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Completo</label>
+                    <input type="text" id="solicitanteNome" placeholder="Nome do solicitante" class="w-full p-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">CPF</label>
+                    <input type="text" id="solicitanteCPF" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCPF(this)" class="w-full p-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Naturalidade (Cidade / UF)</label>
+                    <input type="text" id="solicitanteNaturalidade" placeholder="Ex: Macapá - AP" class="w-full p-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(4)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar para Vítimas ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4: QUANTIDADE E CADASTRO DE VÍTIMAS -->
+        <div id="page4" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(3)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">2.5 Situação das Vítimas</h2>
+                <p class="text-xs text-slate-500">Defina a quantidade de vítimas e faça o cadastro inicial:</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Quantidade de Vítimas</label>
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="alterarQtdVitimas(-1)" class="w-10 h-10 bg-slate-100 hover:bg-slate-200 font-bold text-lg rounded-lg border border-slate-300">-</button>
+                    <input type="number" id="qtdVitimasInput" value="0" min="0" readonly class="w-16 text-center font-bold text-lg p-2 border border-slate-300 rounded-lg bg-slate-50">
+                    <button type="button" onclick="alterarQtdVitimas(1)" class="w-10 h-10 bg-slate-100 hover:bg-slate-200 font-bold text-lg rounded-lg border border-slate-300">+</button>
+                    <button type="button" onclick="copiarSolicitanteParaPrimeiraVitima()" class="text-xs bg-red-50 text-red-700 font-semibold px-2.5 py-2 rounded-lg border border-red-200 hover:bg-red-100">
+                        Copiar Solicitante
+                    </button>
+                </div>
+            </div>
+
+            <div id="listaCadastroVitimas" class="space-y-3"></div>
+
+            <button id="btnAvancarAposCadastro" onclick="avancarAposCadastroVitimas()" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4.1: SELEÇÃO DA VÍTIMA PARA AVALIAÇÃO -->
+        <div id="page4_1" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(4)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar ao Cadastro
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">Escolha a Vítima</h2>
+                <p class="text-xs text-slate-500">Selecione a vítima para preencher o APH e detalhes médicos:</p>
+            </div>
+
+            <div id="containerSelecaoVitimas" class="space-y-3"></div>
+
+            <button onclick="mudarPagina(5)" class="w-full mt-6 py-3.5 bg-slate-800 text-white font-bold rounded-xl shadow-md hover:bg-slate-900 transition">
+                Avançar para Endereço ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4.2: ESTADO GERAL DA VÍTIMA SELECIONADA -->
+        <div id="page4_2" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina('page4_1')" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Selecionar Outra Vítima
+                </button>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-slate-800">Estado Geral</h2>
+                    <span id="labelVitimaAtual1" class="text-xs font-bold bg-red-100 text-red-800 px-2.5 py-1 rounded-full"></span>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <!-- PARTE 1: SITUAÇÃO AO CHEGAR NA CENA -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Parte 1: Situação ao Chegar na Cena</h3>
+                    <div id="chipsParte1" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" value="Consciente"> Consciente</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Inconsciente"> Inconsciente</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Orientado"> Orientado</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Não orientado / Confuso"> Não Orientado</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Deambulando"> Deambulando (Andando)</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Sentado"> Sentado</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Decúbito Dorsal (Deitado de costas)"> Decúbito Dorsal</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Decúbito Ventral (Deitado de barriga)"> Decúbito Ventral</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Decúbito Lateral"> Decúbito Lateral</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Preso em Ferragens / Escombros"> Preso em Ferragens</label>
+                    </div>
+                </div>
+
+                <!-- PARTE 2: TRAUMA OU CLÍNICO -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Parte 2: Especificação (Trauma ou Clínico)</h3>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo de Quadro</label>
+                        <select id="selectTipoQuadroVitima" onchange="alternarCamposQuadro(this.value)" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 bg-white">
+                            <option value="Trauma">Politraumatizado / Trauma / Queimadura</option>
+                            <option value="Clinico">Caso Clínico / Enfermidade</option>
+                        </select>
+                    </div>
+
+                    <!-- Campos Se Trauma -->
+                    <div id="boxQuadroTrauma" class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-600">Descrição e Local do Trauma / Ferimentos / Queimaduras</label>
+                        <textarea id="vitimaDescTrauma" rows="3" placeholder="Ex: Escoriações na face, suspeita de fratura no fêmur direito..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+
+                    <!-- Campos Se Clínico -->
+                    <div id="boxQuadroClinico" class="space-y-2 hidden">
+                        <label class="block text-xs font-semibold text-slate-600">Queixas Principais e Sintomas Clínicos</label>
+                        <div id="chipsSintomasClinicos" class="flex flex-wrap gap-1.5 mb-2">
+                            <label class="chip-checkbox"><input type="checkbox" value="Hipertensão / Dor no peito"> Hipertensão</label>
+                            <label class="chip-checkbox"><input type="checkbox" value="Dificuldade Respiratória / Dispneia"> Dif. Respiratória</label>
+                            <label class="chip-checkbox"><input type="checkbox" value="Febre / Hipertermia"> Febre</label>
+                            <label class="chip-checkbox"><input type="checkbox" value="Crise Convulsiva / Pós-crise"> Convulsão</label>
+                            <label class="chip-checkbox"><input type="checkbox" value="Dor Abdominal"> Dor Abdominal</label>
+                            <label class="chip-checkbox"><input type="checkbox" value="Tontura / Síncope / Desmaio"> Síncope / Desmaio</label>
+                        </div>
+                        <textarea id="vitimaDescClinica" rows="2" placeholder="Descreva mais detalhes sobre a queixa clínica..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+                </div>
+
+                <!-- PARTE 3: SINAIS VITAIS -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Parte 3: Sinais Vitais</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Saturação (SpO2 %)</label>
+                            <input type="text" id="svSat" placeholder="Ex: 98%" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Batimentos (FC bpm)</label>
+                            <input type="text" id="svFC" placeholder="Ex: 80 bpm" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Pressão Arterial (PA)</label>
+                            <input type="text" id="svPA" placeholder="Ex: 120x80 mmHg" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Pupilas</label>
+                            <select id="svPupilas" class="w-full p-2 rounded-lg border border-slate-300 text-xs bg-white">
+                                <option value="Isocóricas">Isocóricas</option>
+                                <option value="Anisocóricas">Anisocóricas</option>
+                                <option value="Midriáticas">Midriáticas</option>
+                                <option value="Mióticas">Mióticas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Freq. Respiratória (FR)</label>
+                            <input type="text" id="svFR" placeholder="Ex: 18 mrpm" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Glicemia Capilar</label>
+                            <input type="text" id="svGlicemia" placeholder="Ex: 90 mg/dL" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina('page4_3')" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar para Procedimentos APH ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4.3: PROCEDIMENTOS DE APH APLICADOS -->
+        <div id="page4_3" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina('page4_2')" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar ao Estado Geral
+                </button>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-slate-800">Procedimentos APH</h2>
+                    <span id="labelVitimaAtual2" class="text-xs font-bold bg-red-100 text-red-800 px-2.5 py-1 rounded-full"></span>
+                </div>
+                <p class="text-xs text-slate-500">Marque as condutas pré-hospitalares adotadas nesta vítima:</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div id="chipsProcedimentosAPH" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" value="Avaliação Primária / Secundária (XABCDE)"> Avaliação XABCDE</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Controle de Hemorragia / Aplicação de Torniquete"> Torniquete / Hemorragia</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Abertura de Vias Aéreas / Cânula de Guedel"> Manejo de Vias Aéreas</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Oxigenoterapia suplementar"> Oxigenoterapia</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="RCP (Ressuscitação Cardiopulmonar)"> RCP</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Uso do DEA (Desfibrilador Externo Automático)"> Uso do DEA</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Imobilização Cervical e Dorsal"> Imobilização Coluna/Cervical</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Imobilização de Membros Fraturados"> Imobilização de Membros</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Curativos, Ataduras e Limpeza de Ferimentos"> Curativos / Ataduras</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Queimaduras: Resfriamento e Enfaixamento Estéril"> Tratamento de Queimadura</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Proteção Térmica / Manta Aluminizada"> Manta Térmica</label>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Observações de Procedimentos</label>
+                    <textarea id="vitimaObsAPH" rows="2" placeholder="Detalhes adicionais dos procedimentos realizados..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina('page4_4')" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar para Materiais Utilizados ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4.4: MATERIAIS UTILIZADOS -->
+        <div id="page4_4" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina('page4_3')" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar a Procedimentos
+                </button>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-slate-800">Materiais Utilizados</h2>
+                    <span id="labelVitimaAtual3" class="text-xs font-bold bg-red-100 text-red-800 px-2.5 py-1 rounded-full"></span>
+                </div>
+                <p class="text-xs text-slate-500">Selecione os insumos consumidos com a vítima:</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div id="chipsMateriais" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" value="Colar Cervical"> Colar Cervical</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Talas de Imobilização (Membros)"> Talas de Imobilização</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Prancha Rígida com Colete/Tiras"> Prancha Rígida / Tiras</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Imobilizador de Cabeça (Head Block)"> Head Block</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="O2 (Cilindro de Oxigênio / Máscara / Cateter)"> O2 (Oxigênio)</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="DEA (Eletrodos / Desfibrilador)"> DEA</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="KED (Colete de Extricação)"> KED</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Ataduras e Gazes Estéreis"> Ataduras e Gazes</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Manta Aluminizada Térmica"> Manta Aluminizada</label>
+                        <label class="chip-checkbox"><input type="checkbox" value="Soros e Kit Queimados"> Kit Queimados</label>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina('page4_5')" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar para Destino e Transporte ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 4.5: DESTINO E MEIO DE TRANSPORTE DA VÍTIMA -->
+        <div id="page4_5" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina('page4_4')" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar a Materiais
+                </button>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-slate-800">Destino e Transporte</h2>
+                    <span id="labelVitimaAtual4" class="text-xs font-bold bg-red-100 text-red-800 px-2.5 py-1 rounded-full"></span>
+                </div>
+            </div>
+
+            <div class="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Destino da Vítima (Hospital Encaminhado)</label>
+                    <select id="vitimaDestino" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
+                        <option value="Hospital de Emergência (HE)">Hospital de Emergência (HE)</option>
+                        <option value="UPA Zona Norte">UPA Zona Norte</option>
+                        <option value="UPA Zona Sul">UPA Zona Sul</option>
+                        <option value="Hospital da Criança e do Adolescente (HCA)">HCA</option>
+                        <option value="Hospital de Santana">Hospital de Santana</option>
+                        <option value="Liberado/Recusou Atendimento no Local">Liberado no Local / Recusa</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Meio de Transporte Utilizado</label>
+                    <select id="vitimaMeioTransporte" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
+                        <option value="Ambulância UR do CBM-AP">Ambulância UR do CBM-AP</option>
+                        <option value="Ambulância do SAMU (USA/USB)">Ambulância do SAMU</option>
+                        <option value="Viatura Operacional do CBM-AP">Viatura Operacional CBM-AP</option>
+                        <option value="Transporte Próprio / Terceiros">Transporte Próprio / Terceiros</option>
+                        <option value="Não Houve Transporte">Não Houve Transporte</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="salvarEDeconectarVitimaAtual()" class="w-full mt-6 py-3.5 bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:bg-emerald-800 transition">
+                Salvar Vítima e Voltar para Lista ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 5: ENDEREÇO DA OCORRÊNCIA -->
+        <div id="page5" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina('page4_1')" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar às Vítimas
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">5. Endereço e Localização</h2>
+                <p class="text-xs text-slate-500">Pesquise no mapa, use o GPS ou toque no local:</p>
+            </div>
+
+            <button onclick="obterLocalizacaoGPS()" class="w-full mb-3 py-3 px-3 bg-red-50 text-red-700 font-bold rounded-xl text-xs border border-red-200 flex items-center justify-center gap-2 shadow-sm active:bg-red-100">
+                Usar Minha Localização Atual (GPS)
+            </button>
+
+            <div id="map" class="mb-3 border border-slate-300 shadow-sm"></div>
+
+            <div class="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Logradouro (Rua / Av.)</label>
+                    <input type="text" id="endRua" placeholder="Ex: Av. FAB" class="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="col-span-1">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Número</label>
+                        <input type="text" id="endNumero" placeholder="S/N" class="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Bairro</label>
+                        <input type="text" id="endBairro" placeholder="Ex: Centro" class="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ponto de Referência</label>
+                    <input type="text" id="endRef" placeholder="Ex: Próximo à praça" class="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+
+                <hr class="my-2 border-slate-100">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Coordenadas Decimais (DD)</label>
+                    <input type="text" id="coordDecimal" readonly placeholder="Ex: 0.034900, -51.069400" class="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Coordenadas em Graus (DMS)</label>
+                    <input type="text" id="coordGraus" readonly placeholder="Ex: 0°02'05.6&quot;N 51°04'09.8&quot;W" class="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono text-slate-700">
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(6)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 6: DATA E HORA DO CHAMADO -->
+        <div id="page6" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(5)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">6. Data e Hora do Chamado</h2>
+                <p class="text-xs text-slate-500">Confirme o momento do acionamento inicial:</p>
+            </div>
+
+            <div class="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Data e Hora do Chamado (CIODES)</label>
+                    <input type="datetime-local" id="dataHoraOcorrencia" class="w-full p-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-red-600">
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(7)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 7: DESLOCAMENTO ATÉ A OCORRÊNCIA -->
+        <div id="page7" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(6)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">7. Deslocamento até o Local</h2>
+                <p class="text-xs text-slate-500">Registre os horários e fatores que afetaram a resposta:</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Tempos do Deslocamento</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Saída da Base</label>
+                            <input type="time" id="deslocSaida" onchange="calcularTempoResposta()" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Chegada ao Local</label>
+                            <input type="time" id="deslocChegada" onchange="calcularTempoResposta()" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tempo Total Estimado</label>
+                        <input type="text" id="tempoTotalExibicao" readonly placeholder="Ex: 12 minutos" class="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700">
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Condições de Trânsito</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="condTransito" value="Trânsito livre/sem retenções" checked> Trânsito Livre</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="condTransito" value="Lentidão / Engarrafamento"> Lentidão</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="condTransito" value="Vias estreitas com carros estacionados"> Vias Estreitas</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="condTransito" value="Obras na pista / Bloqueio parcial"> Obras na Pista</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="condTransito" value="Semáforos / Cruzamentos de alto fluxo"> Cruzamentos Intensos</label>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Dificuldades de Acesso</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Nenhuma dificuldade enfrentada" checked> Sem Dificuldade</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Rua alagada / Alagamento"> Rua Alagada</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Via não pavimentada / Lama / Buraqueira"> Via Não Pavimentada</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Obstáculos na pista (árvores/entulho)"> Obstáculos na Pista</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Erro na localização enviada pelo solicitante"> Erro de Localização</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="difAcesso" value="Distância excessiva do quartel"> Distância Longa</label>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Detalhes Adicionais do Deslocamento</label>
+                    <textarea id="deslocObs" rows="2" placeholder="Ex: Necessário desvio pela via paralela devido a obras..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(8)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 8: CHEGADA À CENA -->
+        <div id="page8" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(7)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">8. Chegada à Cena</h2>
+                <p class="text-xs text-slate-500">Registre o cenário inicial e as primeiras providências adotadas:</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Situação Encontrada</h3>
+                    <div id="situacoesBotoesContainer" class="flex flex-wrap gap-2">
+                        <button type="button" onclick="preencherSituacao('Cena controlada, com público no local e vítimas aguardando atendimento.')" class="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium border border-slate-200">Cena Controlada</button>
+                        <button type="button" onclick="preencherSituacao('Cena caótica, com trânsito afetado e grande aglomeração de curiosos.')" class="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium border border-slate-200">Cena Caótica</button>
+                    </div>
+                    <textarea id="cenaSituacao" rows="3" placeholder="Descrição objetiva do cenário inicial..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(9)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 9: TÉCNICAS E PROCEDIMENTOS (OUTRAS ÁREAS) -->
+        <div id="page9" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(8)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">9. Técnicas Operacionais</h2>
+                <p class="text-xs text-slate-500">Técnicas aplicadas além do APH das vítimas:</p>
+            </div>
+
+            <div class="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none" id="tabsTecnicas">
+                <button type="button" onclick="alternarAbaTecnica('incendio')" class="tab-btn active" id="tab_incendio">Incêndio</button>
+                <button type="button" onclick="alternarAbaTecnica('salvamento')" class="tab-btn" id="tab_salvamento">Salvamento/Busca</button>
+                <button type="button" onclick="alternarAbaTecnica('ambiental')" class="tab-btn" id="tab_ambiental">Proteção Ambiental/Animal</button>
+            </div>
+
+            <div class="space-y-4">
+                <div id="conteudo_incendio" class="aba-tecnica-item bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Técnicas de Combate a Incêndio</h3>
+                    <div id="container_incendio" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Ataque direto à fumaça/chamas com jato d'água"> Ataque Direto</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Montagem de linha de adutora e linhas de combate"> Linha Adutora / Combate</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Operação de Rescaldo e eliminação de focos remanescentes"> Rescaldo</label>
+                    </div>
+                </div>
+
+                <div id="conteudo_salvamento" class="aba-tecnica-item bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 hidden">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Técnicas de Salvamento e Busca</h3>
+                    <div id="container_salvamento" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Desencarceramento vehicular (Corte de colunas / Expansão de espaço)"> Desencarceramento Veicular</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Estabilização veicular / Estrutural com calços"> Estabilização Veicular</label>
+                    </div>
+                </div>
+
+                <div id="conteudo_ambiental" class="aba-tecnica-item bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 hidden">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Proteção Ambiental e Manejo Animal</h3>
+                    <div id="container_ambiental" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Contenção física com uso de cambão e pinção de répteis"> Contenção Física (Cambão/Pinção)</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="tecnicasProc" value="Soltura de animal silvestre em habitat natural seguro"> Soltura em Habitat Natural</label>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="mudarPagina(10)" class="w-full mt-6 py-3.5 bg-red-700 text-white font-bold rounded-xl shadow-md hover:bg-red-800 transition">
+                Avançar ➔
+            </button>
+        </div>
+
+        <!-- PÁGINA 10: ENCERRAMENTO E RECURSOS -->
+        <div id="page10" class="page-step">
+            <div class="mb-4">
+                <button onclick="mudarPagina(9)" class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1">
+                    ← Voltar
+                </button>
+                <h2 class="text-xl font-bold text-slate-800">10. Encerramento e Recursos</h2>
+                <p class="text-xs text-slate-500">Registre o desfecho da ocorrência e suporte empregado:</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Órgãos de Apoio e Recursos Presentes</h3>
+                    <div id="recursosContainer" class="flex flex-wrap gap-2">
+                        <label class="chip-checkbox"><input type="checkbox" name="recursosApoio" value="Polícia Militar (PMAP)" checked> PMAP</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="recursosApoio" value="SAMU 192"> SAMU 192</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="recursosApoio" value="Companhia de Eletricidade (CEA/Equatorial)"> CEA/Equatorial</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="recursosApoio" value="Polícia Rodoviária Federal (PRF)"> PRF</label>
+                        <label class="chip-checkbox"><input type="checkbox" name="recursosApoio" value="Perícia Técnica (POLITEC)"> POLITEC</label>
+                    </div>
+                </div>
+
+                <!-- TÓPICO 2.9: DESFECHO DA OCORRÊNCIA -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-red-800 uppercase tracking-wider border-b pb-1">2.9 Desfecho da Ocorrência</h3>
+                    
+                    <!-- Resultado final -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Resultado Final</label>
+                        <div class="flex flex-wrap gap-1.5 mb-1.5">
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoResultado" value="Incêndio extinto"> Incêndio extinto</label>
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoResultado" value="Vítima estabilizada"> Vítima estabilizada</label>
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoResultado" value="Animal capturado"> Animal capturado</label>
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoResultado" value="Risco eliminado"> Risco eliminado</label>
+                        </div>
+                        <input type="text" id="desfechoResultadoOutro" placeholder="Outros resultados ou detalhamento..." class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                    </div>
+
+                    <!-- Encaminhamento da vítima -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Encaminhamento da Vítima</label>
+                        <div class="flex flex-wrap gap-1.5 mb-1.5">
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoEncaminhamento" value="Hospital"> Hospital</label>
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoEncaminhamento" value="Unidade de saúde"> Unidade de saúde</label>
+                            <label class="chip-checkbox"><input type="checkbox" name="desfechoEncaminhamento" value="Permanência no local"> Permanência no local</label>
+                        </div>
+                        <input type="text" id="desfechoEncaminhamentoOutro" placeholder="Detalhes do encaminhamento..." class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                    </div>
+
+                    <!-- Finalização do combate -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Finalização do Combate / Operação</label>
+                        <textarea id="desfechoFinalizacao" rows="2" placeholder="Técnicas que resultaram na extinção/resolução e tempo total de operação..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+
+                    <!-- Retorno à base -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Retorno à Base</label>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div>
+                                <label class="block text-[10px] text-slate-500 mb-0.5">Horário de Retorno</label>
+                                <input type="time" id="deslocRetornoBaseHora" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-slate-500 mb-0.5">Condição da Viatura</label>
+                                <input type="text" id="desfechoCondicaoViatura" placeholder="Ex: Operacional e limpa" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                            </div>
+                        </div>
+                        <label class="chip-checkbox"><input type="checkbox" id="desfechoMateriaisRecolhidos" checked> Todos os materiais foram recolhidos</label>
+                    </div>
+
+                    <!-- Extravio ou dano de material -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Extravio ou Dano de Material</label>
+                        <textarea id="desfechoExtravioDano" rows="2" placeholder="Especificar o item, circunstâncias e impacto (Deixe em branco se não houver)..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+
+                    <!-- Indícios de crime -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Indícios de Crime <span class="text-red-600 font-bold">(Relatar de forma objetiva, sem conclusões pessoais)</span></label>
+                        <p class="text-[10px] text-slate-400 mb-1">Ex: "Foi observado cadeado rompido", "Havia sinais de possível incêndio criminoso, como presença de acelerantes".</p>
+                        <textarea id="desfechoIndiciosCrime" rows="2" placeholder="Descreva apenas os fatos observados objetivamente..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Horários do Encerramento</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Término na Cena</label>
+                            <input type="time" id="horaTerminoCena" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Retorno Disponível (QAP)</label>
+                            <input type="time" id="horaRetornoBase" class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Observações Gerais / Finalização</label>
+                    <textarea id="encerraObs" rows="2" placeholder="Ex: Viatura abastecida e operante na base..." class="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-red-600"></textarea>
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-3">
+                <button onclick="gerarEExibirPrevia()" class="w-full py-3.5 bg-slate-800 text-white font-bold rounded-xl shadow-md hover:bg-slate-900 transition flex items-center justify-center gap-2">
+                    Ver Prévia Completa do Relatório
+                </button>
+
+                <button onclick="finalizarRelatorio()" class="w-full py-3.5 bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:bg-emerald-800 transition">
+                    Concluir Registro
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL DE PRÉVIA DO TEXTO -->
+    <div id="modalPrevia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-slate-800 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-base flex items-center gap-2">Prévia das Informações</h3>
+                <button onclick="fecharModalPrevia()" class="text-slate-300 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-1">
+                <pre id="textoPreviaConteudo" class="whitespace-pre-wrap font-mono text-xs bg-slate-50 p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed"></pre>
+            </div>
+
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex gap-2">
+                <button onclick="copiarTextoPrevia()" class="flex-1 py-2.5 bg-slate-700 text-white font-semibold text-xs rounded-lg hover:bg-slate-800 transition flex items-center justify-center gap-1.5">
+                    Copiar Texto
+                </button>
+                <button onclick="fecharModalPrevia()" class="flex-1 py-2.5 bg-red-700 text-white font-semibold text-xs rounded-lg hover:bg-red-800 transition">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, marker, geocoderControl;
+
+        let dadosOcorrencia = {
+            tipo: '', subtipo: '', tipoSinistro: '',
+            solicitanteNome: '', solicitanteCPF: '', solicitanteNaturalidade: '',
+            vitimas: [],
+            rua: '', numero: '', bairro: '', referencia: '', latDec: null, lngDec: null, coordGraus: '',
+            dataHora: '', horaSaida: '', horaChegada: '', tempoResposta: '',
+            condicoesTransito: [], dificuldadesAcesso: [], obsDeslocamento: '',
+            situacaoCena: '', riscosCena: [], acoesCena: [],
+            tecnicasProcedimentos: [], obsTecnicas: '',
+            recursosApoio: [], horaTerminoCena: '', horaRetornoBase: '', obsEncerramento: '',
+            desfecho: {
+                resultados: [],
+                resultadoOutro: '',
+                encaminhamentos: [],
+                encaminhamentoOutro: '',
+                finalizacaoCombate: '',
+                horarioRetorno: '',
+                condicaoViatura: '',
+                materiaisRecolhidos: true,
+                extravioDanoMaterial: '',
+                indiciosCrime: ''
+            }
+        };
+
+        let idVitimaSendoEditada = null;
+
+        const bancoSubtipos = {
+            'Trauma': ['Acidente de Trânsito', 'Queda da Própria Altura / Altura', 'Queimadura', 'Agressão / FAB / FAF', 'Atropelamento'],
+            'Clínico': ['PCR (Parada Cardiorrespiratória)', 'Desmaio / Síncope', 'Crise Convulsiva', 'Dificuldade Respiratória / Dispneia', 'Crise Hipertensiva'],
+            'Proteção Ambiental / Animal': ['Corte / Poda de Árvore com Risco', 'Captura / Resgate de Animal Silvestre/Doméstico', 'Vistoria em Área de Risco'],
+            'Salvamento / Busca': ['Desabamento / Desmoronamento', 'Pessoa Perdida / Busca Terrestre', 'Salvamento Aquático / Afogamento'],
+            'Incêndio': ['Incêndio em Vegetação / Florestal', 'Incêndio em Edificação Residencial', 'Incêndio em Veículo']
+        };
+
+        const listaSinistrosTransito = [
+            { nome: 'Auto x Auto' }, { nome: 'Auto x Moto' }, { nome: 'Auto x Pedestre (Atropelamento)' },
+            { nome: 'Auto x Bicicleta' }, { nome: 'Moto x Moto' }, { nome: 'Tombamento' }, { nome: 'Capotamento' }
+        ];
+
+        window.onload = () => {
+            const agora = new Date();
+            agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+            document.getElementById('dataHoraOcorrencia').value = agora.toISOString().slice(0,16);
+
+            const horaAtualStr = agora.toISOString().slice(11,16);
+            document.getElementById('deslocSaida').value = horaAtualStr;
+            document.getElementById('deslocChegada').value = horaAtualStr;
+            document.getElementById('horaTerminoCena').value = horaAtualStr;
+            document.getElementById('horaRetornoBase').value = horaAtualStr;
+            document.getElementById('deslocRetornoBaseHora').value = horaAtualStr;
+
+            initLeafletMap();
+            renderizarSinistros();
+        };
+
+        /* --- LEITURA DE DOCUMENTO DE IDENTIDADE (OCR) --- */
+
+        async function processarImagemDocumento(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('ocrStatus');
+            statusEl.classList.remove('hidden');
+            statusEl.innerText = "⏳ Lendo documento, aguarde...";
+
+            try {
+                // Executa a leitura em Português
+                const worker = await Tesseract.createWorker('por');
+                const ret = await worker.recognize(file);
+                const textoExtraido = ret.data.text;
+                await worker.terminate();
+
+                statusEl.innerText = "✔ Leitura concluída! Preenchendo campos...";
+
+                // Tenta extrair CPF (padrao de 11 digitos)
+                const cpfMatch = textoExtraido.match(/\d{3}[\s.-]?\d{3}[\s.-]?\d{3}[\s.-]?\d{2}/);
+                if (cpfMatch) {
+                    const cpfLimpo = cpfMatch[0].replace(/\D/g, '');
+                    if (cpfLimpo.length === 11) {
+                        const inputCPF = document.getElementById('solicitanteCPF');
+                        inputCPF.value = cpfLimpo;
+                        mascaraCPF(inputCPF);
+                    }
+                }
+
+                // Tenta buscar linhas que contenham nomes próprios em caixa alta ou início de linha
+                const linhas = textoExtraido.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+                
+                // Filtro básico para tentar extrair Nome
+                let nomeEncontrado = "";
+                for (let linha of linhas) {
+                    // Evita termos comuns de RG/CNH
+                    if (!/REPÚBLICA|FEDERATIVA|BRASIL|MINISTÉRIO|VALIDA|NASCIMENTO|REGISTRO|CARTEIRA|DRIVE|CPF|DATA|DOC/i.test(linha)) {
+                        if (/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ\s]{6,}$/i.test(linha)) {
+                            nomeEncontrado = linha;
+                            break;
+                        }
+                    }
+                }
+
+                if (nomeEncontrado) {
+                    document.getElementById('solicitanteNome').value = nomeEncontrado;
+                }
+
+                setTimeout(() => {
+                    statusEl.classList.add('hidden');
+                }, 3000);
+
+            } catch (err) {
+                console.error(err);
+                statusEl.innerText = "❌ Não foi possível ler o documento. Tente tirar uma foto com melhor iluminação.";
+            }
+        }
+
+        function initLeafletMap() {
+            const latInicial = 0.0349;
+            const lngInicial = -51.0694;
+
+            map = L.map('map').setView([latInicial, lngInicial], 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            marker = L.marker([latInicial, lngInicial], { draggable: true }).addTo(map);
+
+            geocoderControl = L.Control.geocoder({
+                defaultMarkGeocode: false,
+                placeholder: "Pesquisar endereço ou local..."
+            })
+            .on('markgeocode', function(e) {
+                const center = e.geocode.center;
+                map.setView(center, 17);
+                marker.setLatLng(center);
+                atualizarCoordenadasEEndereco(center.lat, center.lng);
+            })
+            .addTo(map);
+
+            marker.on('dragend', function () {
+                const coord = marker.getLatLng();
+                atualizarCoordenadasEEndereco(coord.lat, coord.lng);
+            });
+
+            map.on('click', function (e) {
+                marker.setLatLng(e.latlng);
+                atualizarCoordenadasEEndereco(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        function paraGrausMinutosSegundos(deg, isLat) {
+            const absoluto = Math.abs(deg);
+            const d = Math.floor(absoluto);
+            const minNotTruncated = (absoluto - d) * 60;
+            const m = Math.floor(minNotTruncated);
+            const s = ((minNotTruncated - m) * 60).toFixed(1);
+            const direcao = isLat ? (deg >= 0 ? "N" : "S") : (deg >= 0 ? "E" : "W");
+            return `${d}°${m}'${s}"${direcao}`;
+        }
+
+        function atualizarCoordenadasEEndereco(lat, lng) {
+            dadosOcorrencia.latDec = lat;
+            dadosOcorrencia.lngDec = lng;
+
+            document.getElementById('coordDecimal').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+            const dmsLat = paraGrausMinutosSegundos(lat, true);
+            const dmsLng = paraGrausMinutosSegundos(lng, false);
+            const dmsTexto = `${dmsLat} ${dmsLng}`;
+            document.getElementById('coordGraus').value = dmsTexto;
+            dadosOcorrencia.coordGraus = dmsTexto;
+
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.address) {
+                        const addr = data.address;
+                        if (addr.road) document.getElementById('endRua').value = addr.road;
+                        if (addr.suburb || addr.neighbourhood) document.getElementById('endBairro').value = addr.suburb || addr.neighbourhood;
+                        if (addr.house_number) document.getElementById('endNumero').value = addr.house_number;
+                    }
+                }).catch(() => console.log('Offline.'));
+        }
+
+        function obterLocalizacaoGPS() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        map.setView([lat, lng], 17);
+                        marker.setLatLng([lat, lng]);
+                        atualizarCoordenadasEEndereco(lat, lng);
+                    },
+                    () => alert("Erro ao obter GPS.")
+                );
+            }
+        }
+
+        function mudarPagina(idPagina) {
+            document.querySelectorAll('.page-step').forEach(page => page.classList.remove('active'));
+            
+            const target = typeof idPagina === 'number' ? `page${idPagina}` : idPagina;
+            const el = document.getElementById(target);
+            if (el) el.classList.add('active');
+
+            document.getElementById('stepIndicator').innerText = `Etapa: ${target.replace('page', '')}`;
+            window.scrollTo(0, 0);
+
+            if (target === 'page5' && map) {
+                setTimeout(() => map.invalidateSize(), 200);
+            }
+        }
+
+        function selecionarTipo(tipo) {
+            dadosOcorrencia.tipo = tipo;
+            document.getElementById('tipoSelecionadoLabel').innerText = tipo;
+            renderizarSubtipos();
+            mudarPagina(2);
+        }
+
+        function renderizarSubtipos() {
+            const container = document.getElementById('subtiposContainer');
+            container.innerHTML = '';
+            const lista = bancoSubtipos[dadosOcorrencia.tipo] || [];
+
+            lista.forEach(subtipo => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option';
+                btn.onclick = () => selecionarSubtipo(subtipo);
+                btn.innerHTML = `<span>${subtipo}</span><span class="text-slate-400">➔</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function selecionarSubtipo(subtipo) {
+            dadosOcorrencia.subtipo = subtipo;
+            const subtipoLower = subtipo.toLowerCase();
+            if (subtipoLower.includes('trânsito') || subtipoLower.includes('transito') || subtipoLower.includes('atropelamento')) {
+                mudarPagina('page2_1');
+            } else {
+                dadosOcorrencia.tipoSinistro = '';
+                mudarPagina(3);
+            }
+        }
+
+        function renderizarSinistros() {
+            const container = document.getElementById('sinistrosContainer');
+            container.innerHTML = '';
+            listaSinistrosTransito.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option';
+                btn.onclick = () => { dadosOcorrencia.tipoSinistro = item.nome; mudarPagina(3); };
+                btn.innerHTML = `<span>${item.nome}</span><span class="text-slate-400">➔</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function voltarParaEtapaAnteriorAoSolicitante() {
+            const subtipoLower = (dadosOcorrencia.subtipo || '').toLowerCase();
+            if (subtipoLower.includes('trânsito') || subtipoLower.includes('transito') || subtipoLower.includes('atropelamento')) {
+                mudarPagina('page2_1');
+            } else {
+                mudarPagina(2);
+            }
+        }
+
+        /* --- GERENCIAMENTO DE VÍTIMAS --- */
+
+        function alterarQtdVitimas(delta) {
+            let input = document.getElementById('qtdVitimasInput');
+            let atual = parseInt(input.value) || 0;
+            let novo = atual + delta;
+            if (novo < 0) novo = 0;
+            input.value = novo;
+
+            ajustarArrayVitimas(novo);
+        }
+
+        function ajustarArrayVitimas(qtdDesejada) {
+            while (dadosOcorrencia.vitimas.length < qtdDesejada) {
+                let id = dadosOcorrencia.vitimas.length + 1;
+                dadosOcorrencia.vitimas.push({
+                    id: id,
+                    nome: `Vítima #${id}`,
+                    cpf: '',
+                    idadeSexo: '',
+                    estadoGeral: [],
+                    tipoQuadro: 'Trauma',
+                    descTrauma: '',
+                    descClinica: '',
+                    sintomasClinicos: [],
+                    sinaisVitais: { sat: '', fc: '', pa: '', pupilas: 'Isocóricas', fr: '', glicemia: '' },
+                    procedimentosAPH: [],
+                    obsAPH: '',
+                    materiaisUtilizados: [],
+                    destino: 'Hospital de Emergência (HE)',
+                    meioTransporte: 'Ambulância UR do CBM-AP',
+                    preenchido: false
+                });
+            }
+
+            if (dadosOcorrencia.vitimas.length > qtdDesejada) {
+                dadosOcorrencia.vitimas = dadosOcorrencia.vitimas.slice(0, qtdDesejada);
+            }
+
+            renderizarFormulariosCadastroVitimas();
+        }
+
+        function copiarSolicitanteParaPrimeiraVitima() {
+            if (dadosOcorrencia.vitimas.length === 0) {
+                alterarQtdVitimas(1);
+            }
+            const nome = document.getElementById('solicitanteNome').value;
+            const cpf = document.getElementById('solicitanteCPF').value;
+            if (nome) dadosOcorrencia.vitimas[0].nome = nome;
+            if (cpf) dadosOcorrencia.vitimas[0].cpf = cpf;
+            renderizarFormulariosCadastroVitimas();
+        }
+
+        function renderizarFormulariosCadastroVitimas() {
+            const container = document.getElementById('listaCadastroVitimas');
+            container.innerHTML = '';
+
+            if (dadosOcorrencia.vitimas.length === 0) {
+                container.innerHTML = `
+                    <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                        <p class="text-xs font-bold text-emerald-800">Ocorrência sem Vítimas Físicas / Feridos</p>
+                    </div>`;
+                return;
+            }
+
+            dadosOcorrencia.vitimas.forEach((v, index) => {
+                let card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b pb-1">
+                        <span class="text-xs font-bold text-red-800">Vítima #${v.id}</span>
+                        <span class="text-[10px] ${v.preenchido ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-2 py-0.5 rounded font-bold">
+                            ${v.preenchido ? 'Detalhes Preenchidos' : 'Pendente de Detalhamento'}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Nome Completo</label>
+                        <input type="text" value="${v.nome}" onchange="dadosOcorrencia.vitimas[${index}].nome = this.value" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">CPF</label>
+                            <input type="text" value="${v.cpf}" placeholder="000.000.000-00" oninput="mascaraCPF(this)" onchange="dadosOcorrencia.vitimas[${index}].cpf = this.value" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Idade / Sexo</label>
+                            <input type="text" value="${v.idadeSexo}" placeholder="Ex: 30 anos / M" onchange="dadosOcorrencia.vitimas[${index}].idadeSexo = this.value" class="w-full p-2 rounded-lg border border-slate-300 text-xs">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function avancarAposCadastroVitimas() {
+            if (dadosOcorrencia.vitimas.length === 0) {
+                mudarPagina(5);
+            } else {
+                renderizarListaSelecaoVitimas();
+                mudarPagina('page4_1');
+            }
+        }
+
+        function renderizarListaSelecaoVitimas() {
+            const container = document.getElementById('containerSelecaoVitimas');
+            container.innerHTML = '';
+
+            dadosOcorrencia.vitimas.forEach((v) => {
+                let btn = document.createElement('button');
+                btn.className = "w-full p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex justify-between items-center hover:border-red-600 text-left transition";
+                btn.onclick = () => abrirEdicaoVitima(v.id);
+
+                btn.innerHTML = `
+                    <div>
+                        <p class="font-bold text-sm text-slate-800">${v.nome}</p>
+                        <p class="text-xs text-slate-500">${v.idadeSexo || 'Idade/Sexo N/I'} - CPF: ${v.cpf || 'N/I'}</p>
+                    </div>
+                    <span class="text-xs font-bold ${v.preenchido ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'} px-2.5 py-1 rounded-full">
+                        ${v.preenchido ? '✔ Editado' : '✎ Descrever'}
+                    </span>
+                `;
+                container.appendChild(btn);
+            });
+        }
+
+        function abrirEdicaoVitima(id) {
+            idVitimaSendoEditada = id;
+            let v = dadosOcorrencia.vitimas.find(item => item.id === id);
+            if (!v) return;
+
+            ['labelVitimaAtual1', 'labelVitimaAtual2', 'labelVitimaAtual3', 'labelVitimaAtual4'].forEach(lId => {
+                document.getElementById(lId).innerText = `${v.nome}`;
+            });
+
+            document.querySelectorAll('#chipsParte1 input[type="checkbox"]').forEach(chk => {
+                chk.checked = v.estadoGeral.includes(chk.value);
+            });
+
+            document.getElementById('selectTipoQuadroVitima').value = v.tipoQuadro || 'Trauma';
+            alternarCamposQuadro(v.tipoQuadro || 'Trauma');
+            document.getElementById('vitimaDescTrauma').value = v.descTrauma || '';
+            document.getElementById('vitimaDescClinica').value = v.descClinica || '';
+            document.querySelectorAll('#chipsSintomasClinicos input[type="checkbox"]').forEach(chk => {
+                chk.checked = v.sintomasClinicos.includes(chk.value);
+            });
+
+            document.getElementById('svSat').value = v.sinaisVitais.sat || '';
+            document.getElementById('svFC').value = v.sinaisVitais.fc || '';
+            document.getElementById('svPA').value = v.sinaisVitais.pa || '';
+            document.getElementById('svPupilas').value = v.sinaisVitais.pupilas || 'Isocóricas';
+            document.getElementById('svFR').value = v.sinaisVitais.fr || '';
+            document.getElementById('svGlicemia').value = v.sinaisVitais.glicemia || '';
+
+            document.querySelectorAll('#chipsProcedimentosAPH input[type="checkbox"]').forEach(chk => {
+                chk.checked = v.procedimentosAPH.includes(chk.value);
+            });
+            document.getElementById('vitimaObsAPH').value = v.obsAPH || '';
+
+            document.querySelectorAll('#chipsMateriais input[type="checkbox"]').forEach(chk => {
+                chk.checked = v.materiaisUtilizados.includes(chk.value);
+            });
+
+            document.getElementById('vitimaDestino').value = v.destino || 'Hospital de Emergência (HE)';
+            document.getElementById('vitimaMeioTransporte').value = v.meioTransporte || 'Ambulância UR do CBM-AP';
+
+            mudarPagina('page4_2');
+        }
+
+        function alternarCamposQuadro(tipo) {
+            if (tipo === 'Trauma') {
+                document.getElementById('boxQuadroTrauma').classList.remove('hidden');
+                document.getElementById('boxQuadroClinico').classList.add('hidden');
+            } else {
+                document.getElementById('boxQuadroTrauma').classList.add('hidden');
+                document.getElementById('boxQuadroClinico').classList.remove('hidden');
+            }
+        }
+
+        function salvarEDeconectarVitimaAtual() {
+            let v = dadosOcorrencia.vitimas.find(item => item.id === idVitimaSendoEditada);
+            if (!v) return;
+
+            v.estadoGeral = Array.from(document.querySelectorAll('#chipsParte1 input[type="checkbox"]:checked')).map(c => c.value);
+
+            v.tipoQuadro = document.getElementById('selectTipoQuadroVitima').value;
+            v.descTrauma = document.getElementById('vitimaDescTrauma').value;
+            v.descClinica = document.getElementById('vitimaDescClinica').value;
+            v.sintomasClinicos = Array.from(document.querySelectorAll('#chipsSintomasClinicos input[type="checkbox"]:checked')).map(c => c.value);
+
+            v.sinaisVitais = {
+                sat: document.getElementById('svSat').value,
+                fc: document.getElementById('svFC').value,
+                pa: document.getElementById('svPA').value,
+                pupilas: document.getElementById('svPupilas').value,
+                fr: document.getElementById('svFR').value,
+                glicemia: document.getElementById('svGlicemia').value
+            };
+
+            v.procedimentosAPH = Array.from(document.querySelectorAll('#chipsProcedimentosAPH input[type="checkbox"]:checked')).map(c => c.value);
+            v.obsAPH = document.getElementById('vitimaObsAPH').value;
+
+            v.materiaisUtilizados = Array.from(document.querySelectorAll('#chipsMateriais input[type="checkbox"]:checked')).map(c => c.value);
+
+            v.destino = document.getElementById('vitimaDestino').value;
+            v.meioTransporte = document.getElementById('vitimaMeioTransporte').value;
+
+            v.preenchido = true;
+
+            renderizarListaSelecaoVitimas();
+            mudarPagina('page4_1');
+        }
+
+        function mascaraCPF(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.length > 11) value = value.slice(0, 11);
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            input.value = value;
+        }
+
+        function preencherSituacao(texto) {
+            document.getElementById('cenaSituacao').value = texto;
+        }
+
+        function alternarAbaTecnica(aba) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.aba-tecnica-item').forEach(item => item.classList.add('hidden'));
+
+            const tabEl = document.getElementById(`tab_${aba}`);
+            const conteutEl = document.getElementById(`conteudo_${aba}`);
+
+            if (tabEl) tabEl.classList.add('active');
+            if (conteutEl) conteutEl.classList.remove('hidden');
+        }
+
+        function calcularTempoResposta() {
+            const tSaida = document.getElementById('deslocSaida').value;
+            const tChegada = document.getElementById('deslocChegada').value;
+
+            if (tSaida && tChegada) {
+                const [h1, m1] = tSaida.split(':').map(Number);
+                const [h2, m2] = tChegada.split(':').map(Number);
+                let minSaida = h1 * 60 + m1;
+                let minChegada = h2 * 60 + m2;
+                if (minChegada < minSaida) minChegada += 24 * 60;
+                const diff = minChegada - minSaida;
+                document.getElementById('tempoTotalExibicao').value = `${diff} minutos`;
+            }
+        }
+
+        function capturarDadosGeraisFormulario() {
+            dadosOcorrencia.solicitanteNome = document.getElementById('solicitanteNome').value || 'Não informado';
+            dadosOcorrencia.solicitanteCPF = document.getElementById('solicitanteCPF').value || 'Não informado';
+            dadosOcorrencia.solicitanteNaturalidade = document.getElementById('solicitanteNaturalidade').value || 'Não informada';
+
+            dadosOcorrencia.rua = document.getElementById('endRua').value || 'Logradouro não informado';
+            dadosOcorrencia.numero = document.getElementById('endNumero').value || 'S/N';
+            dadosOcorrencia.bairro = document.getElementById('endBairro').value || 'Bairro não informado';
+            dadosOcorrencia.referencia = document.getElementById('endRef').value || 'Sem ponto de referência';
+            
+            const rawDataHora = document.getElementById('dataHoraOcorrencia').value;
+            dadosOcorrencia.dataHora = rawDataHora ? new Date(rawDataHora).toLocaleString('pt-BR') : 'Não informada';
+
+            dadosOcorrencia.horaSaida = document.getElementById('deslocSaida').value || 'N/I';
+            dadosOcorrencia.horaChegada = document.getElementById('deslocChegada').value || 'N/I';
+            dadosOcorrencia.tempoResposta = document.getElementById('tempoTotalExibicao').value || 'N/I';
+
+            dadosOcorrencia.condicoesTransito = Array.from(document.querySelectorAll('input[name="condTransito"]:checked')).map(el => el.value);
+            dadosOcorrencia.dificuldadesAcesso = Array.from(document.querySelectorAll('input[name="difAcesso"]:checked')).map(el => el.value);
+            dadosOcorrencia.obsDeslocamento = document.getElementById('deslocObs').value || '';
+
+            dadosOcorrencia.situacaoCena = document.getElementById('cenaSituacao').value || 'Não descrita';
+            dadosOcorrencia.tecnicasProcedimentos = Array.from(document.querySelectorAll('input[name="tecnicasProc"]:checked')).map(el => el.value);
+
+            dadosOcorrencia.recursosApoio = Array.from(document.querySelectorAll('input[name="recursosApoio"]:checked')).map(el => el.value);
+            dadosOcorrencia.horaTerminoCena = document.getElementById('horaTerminoCena').value || 'N/I';
+            dadosOcorrencia.horaRetornoBase = document.getElementById('horaRetornoBase').value || 'N/I';
+            dadosOcorrencia.obsEncerramento = document.getElementById('encerraObs').value || '';
+
+            // Captura do Tópico 2.9 Desfecho da Ocorrência
+            dadosOcorrencia.desfecho = {
+                resultados: Array.from(document.querySelectorAll('input[name="desfechoResultado"]:checked')).map(el => el.value),
+                resultadoOutro: document.getElementById('desfechoResultadoOutro').value || '',
+                encaminhamentos: Array.from(document.querySelectorAll('input[name="desfechoEncaminhamento"]:checked')).map(el => el.value),
+                encaminhamentoOutro: document.getElementById('desfechoEncaminhamentoOutro').value || '',
+                finalizacaoCombate: document.getElementById('desfechoFinalizacao').value || '',
+                horarioRetorno: document.getElementById('deslocRetornoBaseHora').value || 'N/I',
+                condicaoViatura: document.getElementById('desfechoCondicaoViatura').value || 'Em condições operacionais',
+                materiaisRecolhidos: document.getElementById('desfechoMateriaisRecolhidos').checked,
+                extravioDanoMaterial: document.getElementById('desfechoExtravioDano').value || 'Nenhum registro de extravio ou dano de material.',
+                indiciosCrime: document.getElementById('desfechoIndiciosCrime').value || 'Sem indícios aparentes de crime registrados no local.'
+            };
+        }
+
+        /* --- SÍNTESE NARRATIVA DINÂMICA (HISTÓRICO DA OCORRÊNCIA) --- */
+
+        function gerarNarrativaDinamica() {
+            let n = [];
+
+            // 1. Acionamento e Solicitante
+            n.push(`A guarnição do Corpo de Bombeiros Militar do Amapá foi acionada às ${dadosOcorrencia.dataHora} via CIODES para atender a uma ocorrência classificada como ${dadosOcorrencia.tipo} (${dadosOcorrencia.subtipo}${dadosOcorrencia.tipoSinistro ? ' - ' + dadosOcorrencia.tipoSinistro : ''}). O chamado foi realizado pelo(a) Sr.(a) ${dadosOcorrencia.solicitanteNome}, portador(a) do CPF nº ${dadosOcorrencia.solicitanteCPF}.`);
+
+            // 2. Deslocamento e Localização
+            let condicoesStr = dadosOcorrencia.condicoesTransito.length > 0 ? dadosOcorrencia.condicoesTransito.join(', ') : 'sem alterações significativas';
+            let dificuldadesStr = dadosOcorrencia.dificuldadesAcesso.length > 0 ? dadosOcorrencia.dificuldadesAcesso.join(', ') : 'nenhuma interferência de acesso';
+            
+            n.push(`A equipe deslocou-se da base às ${dadosOcorrencia.horaSaida}, chegando ao local na ${dadosOcorrencia.rua}, Nº ${dadosOcorrencia.numero}, Bairro ${dadosOcorrencia.bairro} (Ref: ${dadosOcorrencia.referencia}; Coordenadas: ${dadosOcorrencia.coordGraus || 'N/I'}) às ${dadosOcorrencia.horaChegada}, totalizando um tempo de resposta de ${dadosOcorrencia.tempoResposta}. O trajeto foi marcado por condições de trânsito como: ${condicoesStr}, enfrentando-se como fatores de acesso: ${dificuldadesStr}. ${dadosOcorrencia.obsDeslocamento ? 'Observação de deslocamento: ' + dadosOcorrencia.obsDeslocamento : ''}`);
+
+            // 3. Chegada e Cenário
+            n.push(`Ao chegar ao local, a guarnição deparou-se com o seguinte cenário: ${dadosOcorrencia.situacaoCena}.`);
+
+            // 4. Narrativa das Vítimas
+            if (dadosOcorrencia.vitimas.length === 0) {
+                n.push(`Após varredura e avaliação do local, constatou-se que não houve vítimas físicas ou feridos a serem atendidos.`);
+            } else {
+                n.push(`Durante o atendimento, identificou-se um total de ${dadosOcorrencia.vitimas.length} vítima(s):`);
+                dadosOcorrencia.vitimas.forEach((v, index) => {
+                    let estadoGeralStr = v.estadoGeral.length > 0 ? v.estadoGeral.join(', ') : 'não especificado';
+                    let sv = v.sinaisVitais;
+                    let sinaisVitaisStr = `SpO2: ${sv.sat || 'N/I'}, FC: ${sv.fc || 'N/I'}, PA: ${sv.pa || 'N/I'}, Pupilas: ${sv.pupilas}, FR: ${sv.fr || 'N/I'}, Glicemia: ${sv.glicemia || 'N/I'}`;
+                    let procsStr = v.procedimentosAPH.length > 0 ? v.procedimentosAPH.join(', ') : 'sem procedimentos específicos';
+                    let matsStr = v.materiaisUtilizados.length > 0 ? v.materiaisUtilizados.join(', ') : 'nenhum material consumido';
+
+                    let quadroDetalhe = v.tipoQuadro === 'Trauma' 
+                        ? `Apresentava quadro traumático caracterizado por: ${v.descTrauma || 'Sem descrição específica'}.`
+                        : `Apresentava quadro clínico manifestado por: ${v.sintomasClinicos.join(', ')} (${v.descClinica || 'Sem observações adicionais'}).`;
+
+                    n.push(`VÍTIMA #${index + 1} (${v.nome}, CPF: ${v.cpf || 'N/I'}, Idade/Sexo: ${v.idadeSexo || 'N/I'}): Encontrada na cena em estado ${estadoGeralStr}. ${quadroDetalhe} À avaliação de sinais vitais registrou-se: [${sinaisVitaisStr}]. Foram aplicadas as condutas de APH: ${procsStr} ${v.obsAPH ? '(' + v.obsAPH + ')' : ''}, empregando-se os materiais: ${matsStr}. A vítima foi transportada por ${v.meioTransporte} até o ${v.destino}.`);
+                });
+            }
+
+            // 5. Técnicas Operacionais Extras
+            if (dadosOcorrencia.tecnicasProcedimentos.length > 0) {
+                n.push(`Paralelamente, a equipe adotou as seguintes técnicas operacionais adicionais: ${dadosOcorrencia.tecnicasProcedimentos.join(', ')}.`);
+            }
+
+            // 6. Apoio e Encerramento
+            let recursosStr = dadosOcorrencia.recursosApoio.length > 0 ? dadosOcorrencia.recursosApoio.join(', ') : 'sem outros órgãos integrados';
+            n.push(`A ocorrência contou com o apoio e presença das seguintes instituições/recursos: ${recursosStr}. As ações na cena foram finalizadas às ${dadosOcorrencia.horaTerminoCena}, e a guarnição retornou à condição de prontidão (QAP) na base às ${dadosOcorrencia.horaRetornoBase}. ${dadosOcorrencia.obsEncerramento ? 'Notas de encerramento: ' + dadosOcorrencia.obsEncerramento : ''}`);
+
+            // 7. Desfecho da Ocorrência (2.9)
+            let df = dadosOcorrencia.desfecho;
+            let resultadosLista = [...df.resultados];
+            if (df.resultadoOutro) resultadosLista.push(df.resultadoOutro);
+            let resultadosTexto = resultadosLista.length > 0 ? resultadosLista.join(', ') : 'Não informado';
+
+            let encamLista = [...df.encaminhamentos];
+            if (df.encaminhamentoOutro) encamLista.push(df.encaminhamentoOutro);
+            let encamTexto = encamLista.length > 0 ? encamLista.join(', ') : 'Não se aplica / Não informado';
+
+            let matRecolhidosTexto = df.materiaisRecolhidos ? 'com todos os materiais devidamente recolhidos' : 'com pendência no recolhimento de materiais';
+
+            n.push(`DESFECHO DA OCORRÊNCIA:\n• Resultado Final: ${resultadosTexto}.\n• Encaminhamento da Vítima: ${encamTexto}.\n• Finalização do Combate/Operação: ${df.finalizacaoCombate || 'Operação concluída conforme procedimentos padrão.'}\n• Retorno à Base: Retorno efetuado às ${df.horarioRetorno}, viatura em condições "${df.condicaoViatura}", ${matRecolhidosTexto}.\n• Extravio ou Dano de Material: ${df.extravioDanoMaterial}\n• Indícios de Crime: ${df.indiciosCrime}`);
+
+            return n.join('\n\n');
+        }
+
+        function construirTextoRelatorio() {
+            capturarDadosGeraisFormulario();
+
+            let blocoVitimasStr = '';
+            if (dadosOcorrencia.vitimas.length === 0) {
+                blocoVitimasStr = '• Ocorrência Sem Vítimas Físicas';
+            } else {
+                blocoVitimasStr = dadosOcorrencia.vitimas.map((v, i) => {
+                    let sv = v.sinaisVitais;
+                    let quadroStr = v.tipoQuadro === 'Trauma' ? `Desc. Trauma: ${v.descTrauma || 'N/I'}` : `Queixas/Sintomas: ${v.sintomasClinicos.join(', ')} | ${v.descClinica}`;
+                    return `
+----------------------------------------
+VÍTIMA #${i+1}: ${v.nome}
+• CPF: ${v.cpf || 'N/I'} | Idade/Sexo: ${v.idadeSexo || 'N/I'}
+• Chegada na Cena: ${v.estadoGeral.join(', ') || 'N/I'}
+• Quadro (${v.tipoQuadro}): ${quadroStr}
+• Sinais Vitais: SpO2: ${sv.sat||'N/I'} | FC: ${sv.fc||'N/I'} | PA: ${sv.pa||'N/I'} | Pupilas: ${sv.pupilas} | FR: ${sv.fr||'N/I'} | Glicemia: ${sv.glicemia||'N/I'}
+• Procedimentos APH: ${v.procedimentosAPH.join(', ') || 'Nenhum registrado'} ${v.obsAPH ? `(${v.obsAPH})` : ''}
+• Materiais Utilizados: ${v.materiaisUtilizados.join(', ') || 'Nenhum'}
+• Destino: ${v.destino}
+• Meio de Transporte: ${v.meioTransporte}`;
+                }).join('\n');
+            }
+
+            const narrativaDissertativa = gerarNarrativaDinamica();
+
+            let df = dadosOcorrencia.desfecho;
+            let resultadosLista = [...df.resultados];
+            if (df.resultadoOutro) resultadosLista.push(df.resultadoOutro);
+
+            let encamLista = [...df.encaminhamentos];
+            if (df.encaminhamentoOutro) encamLista.push(df.encaminhamentoOutro);
+
+            return `========================================
+RELATÓRIO DE OCORRÊNCIA - CBM-AP
+========================================
+
+DADOS DA OCORRÊNCIA:
+Data/Hora Chamado: ${dadosOcorrencia.dataHora}
+Tipo: ${dadosOcorrencia.tipo} - ${dadosOcorrencia.subtipo} ${dadosOcorrencia.tipoSinistro ? `(${dadosOcorrencia.tipoSinistro})` : ''}
+
+SOLICITANTE:
+• Nome: ${dadosOcorrencia.solicitanteNome}
+• CPF: ${dadosOcorrencia.solicitanteCPF}
+
+LOCALIZAÇÃO:
+• Endereço: ${dadosOcorrencia.rua}, Nº ${dadosOcorrencia.numero}, Bairro: ${dadosOcorrencia.bairro}
+• Ponto de Ref.: ${dadosOcorrencia.referencia}
+• Coordenadas: ${dadosOcorrencia.coordGraus || 'N/I'}
+
+2.5 SITUAÇÃO DAS VÍTIMAS (Qtd: ${dadosOcorrencia.vitimas.length})
+${blocoVitimasStr}
+
+========================================
+CHEGADA À CENA & PROCEDIMENTOS OPERACIONAIS:
+• Situação Encontrada: ${dadosOcorrencia.situacaoCena}
+• Técnicas Operacionais: ${dadosOcorrencia.tecnicasProcedimentos.join(', ') || 'Nenhuma extra'}
+
+ENCERRAMENTO E RECURSOS:
+• Órgãos de Apoio: ${dadosOcorrencia.recursosApoio.join(', ') || 'Nenhum'}
+• Horários: Término na cena: ${dadosOcorrencia.horaTerminoCena} | Retorno Base: ${dadosOcorrencia.horaRetornoBase}
+
+2.9 DESFECHO DA OCORRÊNCIA:
+• Resultado final: ${resultadosLista.join(', ') || 'N/I'}
+• Encaminhamento da vítima: ${encamLista.join(', ') || 'N/I'}
+• Finalização do combate/operação: ${df.finalizacaoCombate || 'N/I'}
+• Retorno à base: Horário: ${df.horarioRetorno} | Viatura: ${df.condicaoViatura} | Materiais recolhidos: ${df.materiaisRecolhidos ? 'Sim' : 'Não'}
+• Extravio ou dano de material: ${df.extravioDanoMaterial}
+• Indícios de crime: ${df.indiciosCrime}
+
+========================================
+HISTÓRICO NARRATIVO DA OCORRÊNCIA:
+========================================
+
+${narrativaDissertativa}`;
+        }
+
+        function gerarEExibirPrevia() {
+            const texto = construirTextoRelatorio();
+            document.getElementById('textoPreviaConteudo').textContent = texto;
+            document.getElementById('modalPrevia').classList.remove('hidden');
+        }
+
+        function fecharModalPrevia() {
+            document.getElementById('modalPrevia').classList.add('hidden');
+        }
+
+        function copiarTextoPrevia() {
+            const texto = document.getElementById('textoPreviaConteudo').textContent;
+            navigator.clipboard.writeText(texto).then(() => {
+                alert('Texto copiado para a área de transferência!');
+            });
+        }
+
+        function finalizarRelatorio() {
+            capturarDadosGeraisFormulario();
+            console.log('Dados Finais da Ocorrência:', dadosOcorrencia);
+            alert('Relatório da ocorrência salvo com sucesso!');
+        }
+    </script>
+</body>
+</html>
